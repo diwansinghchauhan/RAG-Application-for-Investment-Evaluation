@@ -1,0 +1,16 @@
+ipykernel
+langchain
+langchain-community
+sentence-transformers==2.2.2
+torch==2.0.1
+numpy==1.25.2
+cryptography==39.0.1
+huggingface_hub==0.14.1
+faiss-cpu
+pytesseract
+pillow
+pdfminer.six
+PyMuPDF
+protobuf
+pypdf
+streamlit
