@@ -1,53 +1,78 @@
 from langchain.schema import Document
-import fitz
-import pytesseract
+import fitz 
 from PIL import Image
 import io
-from pdfminer.high_level import extract_text
-from sentence_transformers import SentenceTransformer
-import numpy as np
 import faiss
-import subprocess
+import numpy as np
+from sentence_transformers import SentenceTransformer
+from transformers import TrOCRProcessor, VisionEncoderDecoderModel
 
-# 1. Text and OCR Extraction
-def extract_text_and_images(file_path):
-    raw_text = extract_text(file_path)
-    text_chunks = [Document(page_content=raw_text[i:i+500]) for i in range(0, len(raw_text), 500)]
+# Load TrOCR (OCR model from Hugging Face)
+processor = TrOCRProcessor.from_pretrained("microsoft/trocr-base-printed")  # or handwritten
+model = VisionEncoderDecoderModel.from_pretrained("microsoft/trocr-small-printed")
 
-    doc = fitz.open(file_path)
-    ocr_docs = []
+# Optional: Use GPU if available
+import torch
+device = "cuda" if torch.cuda.is_available() else "cpu"
+model = model.to(device)
+
+def extract_text_and_images(pdf_path):
+    doc = fitz.open(pdf_path)
+    documents = []
+
     for page_index in range(len(doc)):
-        for img_index, img in enumerate(doc[page_index].get_images(full=True)):
+        page = doc[page_index]
+
+        # Text from PDF page
+        page_text = page.get_text().strip()
+        if page_text:
+            documents.append(Document(
+                page_content=page_text,
+                metadata={"source": f"page_{page_index + 1}"}
+            ))
+
+        # Images from page
+        for img_index, img in enumerate(page.get_images(full=True)):
             xref = img[0]
             base_image = doc.extract_image(xref)
             image_bytes = base_image["image"]
-            img_pil = Image.open(io.BytesIO(image_bytes)).convert("RGB")
-            ocr_text = pytesseract.image_to_string(img_pil)
+            image = Image.open(io.BytesIO(image_bytes)).convert("RGB")
+
+            # OCR using TrOCR
+            pixel_values = processor(images=image, return_tensors="pt").pixel_values.to(device)
+            generated_ids = model.generate(pixel_values)
+            ocr_text = processor.batch_decode(generated_ids, skip_special_tokens=True)[0]
+
             if ocr_text.strip():
-                ocr_docs.append(Document(
-                    page_content=ocr_text,
-                    metadata={"source": f"img_pg{page_index+1}_img_{img_index+1}"}
+                documents.append(Document(
+                    page_content=ocr_text.strip(),
+                    metadata={"source": f"image_page_{page_index+1}_img_{img_index+1}"}
                 ))
 
-    return text_chunks + ocr_docs
+    return documents
 
-# 2. FAISS Indexing
+
+# Build FAISS vector index from documents
 def build_faiss_index(documents):
     texts = [doc.page_content for doc in documents]
-    model = SentenceTransformer("sentence-transformers/paraphrase-MiniLM-L6-v2")
-    embeddings = model.encode(texts)
+    model = SentenceTransformer("paraphrase-MiniLM-L6-v2")
+    embeddings = model.encode(texts, show_progress_bar=True)
     index = faiss.IndexFlatL2(384)
     index.add(np.array(embeddings).astype("float32"))
     return index, texts, model
 
-# 3. Query FAISS
+
+# Perform similarity search
 def query_faiss(query, model, index, texts, k=3):
     q_vec = model.encode([query]).astype("float32")
     D, I = index.search(q_vec, k)
     return [texts[i] for i in I[0]]
 
-# 4. Call Mistral via Ollama
-def ask_mistral(context, question, model="mistral"):
+
+# Query Mistral via Ollama
+import subprocess
+
+def ask_mistral(context, question, model_name="mistral"):
     prompt = f"""Answer the following based on the context.
 
 Context:
@@ -57,7 +82,7 @@ Question: {question}
 Answer:"""
 
     result = subprocess.run(
-        ["ollama", "run", model],
+        ["ollama", "run", model_name],
         input=prompt.encode("utf-8"),
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE
