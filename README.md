@@ -64,15 +64,6 @@ cd RAG-Application-for-Investment-Evaluation
 
 ### 2. Create & Activate a Virtual Environment
 
-```bash
-# For macOS/Linux
-python -m venv venv
-source venv/bin/activate
-
-# For Windows
-python -m venv venv
-venv\Scripts\activate
-```
 
 ### 3. Install Required Dependencies
 
@@ -83,9 +74,6 @@ pip install -r requirements.txt
 ### 4. Install and Run Ollama
 
 ```bash
-# Install Ollama (macOS/Linux)
-curl -fsSL https://ollama.com/install.sh | sh
-
 # Start the Mistral model
 ollama run mistral
 ```
@@ -96,10 +84,7 @@ ollama run mistral
 streamlit run app.py
 ```
 
-Then open your browser and go to:\
-[http://localhost:8501](http://localhost:8501)
-
 ## 🔗 Links
-
-&#x20;
+[![portfolio](https://img.shields.io/badge/my_portfolio-000?style=for-the-badge&logo=ko-fi&logoColor=white)](https://diwansinghchauhan.github.io/portfolio/)
+[![linkedin](https://img.shields.io/badge/linkedin-0A66C2?style=for-the-badge&logo=linkedin&logoColor=white)](https://www.linkedin.com/in/diwansinghchauhan/)
 
